@@ -25,7 +25,9 @@ def processFile(inputfile,serverurl):
     headers = {'content-type': 'application/json'}
     try:
         with open(inputfile) as json_file:
+
             file_data = json_file.read()
+            print(json.dumps(file_data, sort_keys=True, indent=4, separators=(',', ': ')))
             try:
                 r = requests.post(serverurl, data=file_data, headers=headers, timeout=5)
             except Exception, e:
@@ -110,6 +112,15 @@ def main(argv):
             for afile in filelist:
                 processFile(afile,serverurl)
                 time.sleep(float(timeout))
+        filelist = glob.glob(inputdir + '*.xml')
+        if len(filelist):
+            for afile in filelist:
+                processFile(afile, serverurl)
+                time.sleep(float(timeout))
+
+
+
+
         else:
             print "No files of type .json found in directory: " + inputdir
     else:
