@@ -21,6 +21,20 @@ Running
 
 run the script:
 
+Testing
+=======
+
+To test with real data put your *.json files in testing/real (they will be ignored by git)
+
+```
+    python testing/fmtest.py -d testing/real
+```
+
+To test with sample data:#
+
+```
+    python testing/fmtest.py -f testing/alert_details_fireeye_reducted.json
+```
 
 Example:
 ========
