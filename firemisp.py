@@ -129,53 +129,54 @@ def processAlert(p_json):
 
 
 def check_for_previous_events(fireeye_alert):
+
+    """
+    Default: no previous event detected
+
+
+    check for:
+        alert_id | ['alert']['id']
+
+
+
+
+    :param fireeye_alert:
+    :type fireeye_alert:
+    :return:
+    :rtype:
+    """
+    event = False
+
     # TODO: de-duplication is still an issue and the following is a bit hacky
     # TODO: move that to an own method which will return false if no old event is there or the event_id if there is one
     # check if event already exists based on alert id
     if fireeye_alert.alert_id:
-        logger.debug("searching for %s", fireeye_alert.alert_id)
         result = misp.search_all(fireeye_alert.alert_id)
-    if fireeye_alert.alert_url:
+        logger.debug("searching for %s result: %s", fireeye_alert.alert_id,result)
+        event = check_misp_all_result(result)
+
+    if fireeye_alert.alert_url and event == False:
         from urllib import quote
 
-        logger.debug("searching for alert_url %s", fireeye_alert.alert_url)
-        result2 = misp.search_all(quote(fireeye_alert.alert_url))
-        logger.debug("searching for ma_id %s", fireeye_alert.alert_ma_id)
-        result3 = misp.search_all(quote(fireeye_alert.alert_ma_id))
-    previous_event = ''
-    logger.debug("%s %s", result, result2)
-    # this looks hacky but it to avoid exceptions if there is no ['message within the result']
-    if 'message' in result:
-        if result['message'] == 'No matches.':
-            logger.error("No previous event found")
-            # has really no event
-            has_previous_event = False
-    if 'message' in result2:
-        if result2['message'] == 'No matches.':
-            # has really no event
-            has_previous_event = False
-    if 'message' in result3:
-        if result3['message'] == 'No matches.':
-            # has really no event
-            has_previous_event = False
+        result = misp.search_all(quote(fireeye_alert.alert_url))
+        logger.debug("searching for %s result: %s", fireeye_alert.alert_url,result)
 
-    elif 'Event' in result:
-        for e in result['response']:
-            previous_event = e['Event']['id']
-            logger.debug("found an event %s based on alert id %s", previous_event, fireeye_alert.alert_id)
-            break
-            # event in string one found
-    elif 'Event' in result2:
-        for e in result2['response']:
-            previous_event = e['Event']['id']
-            logger.debug("found an event %s based on alert url %s", previous_event, fireeye_alert.alert_url)
-            break
-    elif 'Event' in result3:
-        for e in result3['response']:
-            previous_event = e['Event']['id']
-            logger.debug("found an event %s based on alert url %s", previous_event, fireeye_alert.alert_ma_id)
-            break
-    if previous_event != '':
+        event = check_misp_all_result(result)
+
+    if fireeye_alert.alert_ma_id and event == False:
+
+        result = misp.search_all(quote(fireeye_alert.alert_ma_id))
+
+        logger.debug("searching for %s result: %s", fireeye_alert.alert_ma_id,result)
+        event = check_misp_all_result(result)
+
+
+    previous_event = event
+    # this looks hacky but it to avoid exceptions if there is no ['message within the result']
+
+
+
+    if previous_event != '' and previous_event != False and previous_event != None:
         logger.debug("Will append my data to: %s", previous_event)
         event = misp.get(str(previous_event))  # not get_event
         # r = result.json()
@@ -194,11 +195,37 @@ def check_for_previous_events(fireeye_alert):
     return event
 
 
+def check_misp_all_result(result):
+    logger.debug("Checking %s if it contains previous events",result)
+    if 'message' in result:
+        if result['message'] == 'No matches.':
+            logger.error("No previous event found")
+            # has really no event
+            return False
+    elif 'Event' in result:
+        for e in result['response']:
+            logger.debug("found a previous event!")
+            previous_event = e['Event']['id']
+            return previous_event
+            break
+    else:
+        for e in result['response']:
+            logger.debug("found a previous event!")
+            previous_event = e['Event']['id']
+            return previous_event
+            break
+
+
 def map_alert_to_event(auto_comment, event, fireeye_alert):
-    # START THE MAPPING here
-    # general info that should be there in every alert
-    # internal reference the alert ID
+
+
+
     """
+
+    START THE MAPPING here
+    general info that should be there in every alert
+    internal reference the alert ID
+
 
     :param auto_comment:
     :type auto_comment:
@@ -234,7 +261,11 @@ def map_alert_to_event(auto_comment, event, fireeye_alert):
 
     # Url of the original Alert
     if fireeye_alert.alert_url:
-        misp.add_internal_link(event, fireeye_alert.alert_url, False, auto_comment)
+        misp.add_internal_link(event, fireeye_alert.alert_url, False, "Alert url: " +auto_comment)
+
+    if fireeye_alert.alert_ma_id:
+        misp.add_internal_text(event, fireeye_alert.alert_ma_id, False, "Alert ID "+auto_comment)
+
 
     # infos about the product detected it
     if fireeye_alert.product:
