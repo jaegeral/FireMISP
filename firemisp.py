@@ -143,18 +143,21 @@ def check_for_previous_events(fireeye_alert):
     :param fireeye_alert:
     :type fireeye_alert:
     :return:
+        event id if an event is there
+        false if no event is present
     :rtype:
     """
     event = False
 
     # TODO: de-duplication is still an issue and the following is a bit hacky
-    # TODO: move that to an own method which will return false if no old event is there or the event_id if there is one
-    # check if event already exists based on alert id
+
+    # Based on alert id
     if fireeye_alert.alert_id:
         result = misp.search_all(fireeye_alert.alert_id)
         logger.debug("searching for %s result: %s", fireeye_alert.alert_id,result)
         event = check_misp_all_result(result)
 
+    #Based on Alert Url
     if fireeye_alert.alert_url and event == False:
         from urllib import quote
 
@@ -163,6 +166,7 @@ def check_for_previous_events(fireeye_alert):
 
         event = check_misp_all_result(result)
 
+    # Based on ma_id
     if fireeye_alert.alert_ma_id and event == False:
 
         result = misp.search_all(quote(fireeye_alert.alert_ma_id))
@@ -170,17 +174,13 @@ def check_for_previous_events(fireeye_alert):
         logger.debug("searching for %s result: %s", fireeye_alert.alert_ma_id,result)
         event = check_misp_all_result(result)
 
-
+    # if one of the above returns a value:
     previous_event = event
     # this looks hacky but it to avoid exceptions if there is no ['message within the result']
 
-
-
     if previous_event != '' and previous_event != False and previous_event != None:
         logger.debug("Will append my data to: %s", previous_event)
-        event = misp.get(str(previous_event))  # not get_event
-        # r = result.json()
-        #
+        event = misp.get(str(previous_event))  # not get_event!
     else:
         logger.debug("Will create a new event for it")
         # TODO: set occured day
@@ -217,9 +217,6 @@ def check_misp_all_result(result):
 
 
 def map_alert_to_event(auto_comment, event, fireeye_alert):
-
-
-
     """
 
     START THE MAPPING here
@@ -332,7 +329,7 @@ if __name__ == "__main__":
     misp = init_misp(misp_url, misp_key)
 
     #clean the database for test purposes
-    '''for i in range (200,1348,1):
+    '''for i in range (600,1348,1):
         misp.delete_event(i)
     exit()
     '''

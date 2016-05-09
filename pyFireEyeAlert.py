@@ -56,7 +56,6 @@ class pyFireEyeAlert (object):
         self.malware_file_name = None
         self.occured = None
 
-        #TODO:
         self.c2_protocoll = None
         self.c2_port = None
         self.c2_channel = None
@@ -70,9 +69,9 @@ class pyFireEyeAlert (object):
     #'tcp','1234','1.2.3.4'):
     def add_cnc_service(self,protocoll,port,ip):
         self.c2services = True
-        self.c2_address = "1.2.3.4"
-        self.c2_port = "1234"
-        self.c2_protocoll = "tcp"
+        self.c2_address = ip
+        self.c2_port = port
+        self.c2_protocoll = protocoll
         logger.debug("add cnc service called %s %s %s",protocoll,port,ip)
 
 
@@ -179,39 +178,11 @@ class pyFireEyeAlert (object):
             self.parse_explanation(p_alert_json['alert']['explanation'])
 
 
-        '''
-        ...
-        "cnc-services": {
-          "cnc-service": [
-            {
-              "protocol": "tcp",
-              "port": "4143",
-              "channel": "\\\\026\\\\003\\\\001",
-              "address": "1.2.3.4"
-            },
-            {
-              "protocol": "tcp",
-              "port": "9943",
-              "channel": "\\\\026\\\\003\\\\001",
-              "address": "8.8.8.8"
-            },
-            {
-              "protocol": "tcp",
-              "port": "4493",
-              "channel": "\\\\026\\\\003\\\\001",
-              "address": "1.1.1.1"
-            }
-          ]
-        '''
         if self.parse_explanation:
             if 'cnc-services' in p_alert_json['alert']['explanation']:
-                self.add_cnc_service('tcp', '1234', '1.2.3.4')
-
                 for element in p_alert_json['alert']['explanation']['cnc-services']['cnc-service']:
                     logger.debug("c2 detected")
-                    self.add_cnc_service('tcp','1234','1.2.3.4')
-                    #self.c2_channel = str(element['md5Sum'])
-                    #self.malware_av_name = str(element['name'])
+                    self.add_cnc_service(element['protocol'],element['port'],element['address'])
 
 
         logger.debug("Parsing finished")
