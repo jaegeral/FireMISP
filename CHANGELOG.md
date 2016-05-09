@@ -1,6 +1,13 @@
 firemisp 0.8.2 (2016-05-04)
 ===========================
 
+- first version of C2 connection parsing and adding it to MISP is working
+- config.example.cfg updated to the latest needs
+- code cleanup
+
+firemisp 0.8.2 (2016-05-04)
+===========================
+
 - add alert url as another criteria to not generate a new misp event but attach it to the previous
 - add firemisp webserver params to the config
 
