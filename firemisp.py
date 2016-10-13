@@ -60,10 +60,17 @@ def init_misp(url, key):
 
 class MyRequestHandler(BaseHTTPRequestHandler):
 
+    logger.debug("my request handler")
     # ---------- GET handler to check if httpserver up ----------
     def do_GET(self):
+        logger.debug("someone get")
         pingresponse = {"name": "FireMisp is up"}
         if self.path == "/ping":
+            self.send_response(200)
+            self.send_header("Content-type:", "text/html")
+            self.wfile.write("\n")
+            json.dump(pingresponse, self.wfile)
+        else:
             self.send_response(200)
             self.send_header("Content-type:", "text/html")
             self.wfile.write("\n")
@@ -71,26 +78,39 @@ class MyRequestHandler(BaseHTTPRequestHandler):
 
     # -------------- POST handler: where the magic happens --------------
     def do_POST(self):
+        logger.debug("someone sended a post")
         # get the posted data and remove newlines
         data = self.rfile.read(int(self.headers.getheader('Content-Length')))
         clean = data.replace('\n', '')
-        theJson = json.loads(clean)
+        try:
+            # Write the data to a file as well for debugging later on
+            import datetime
+            filename1 = './testing/real/'+datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+            f = open(filename1, 'w')
+            f.write(data)
+            f.close
 
-        self.send_response(200)
-        self.end_headers()
-        #processAlert(theJson)
-        # deal with multiple alerts embedded as an array
-        if isinstance(theJson['alert'], list):
-#            alertJson = theJson
-#            del alertJson['alert']
-            for element in theJson['alert']:
-                alertJson = {}  # added for Issue #4
-                alertJson['alert'] = element
-                logger.info("Processing FireEye Alert: " + str(alertJson['alert']['id']))
-                processAlert(alertJson)
-        else:
-            logger.debug("Processing FireEye Alert: " + str(theJson['alert']['id']))
-            processAlert(theJson)
+            theJson = json.loads(clean)
+
+            self.send_response(200)
+            self.end_headers()
+            #processAlert(theJson)
+            # deal with multiple alerts embedded as an array
+            if isinstance(theJson['alert'], list):
+    #            alertJson = theJson
+    #            del alertJson['alert']
+                for element in theJson['alert']:
+                    alertJson = {}  # added for Issue #4
+                    alertJson['alert'] = element
+                    logger.info("Processing FireEye Alert: " + str(alertJson['alert']['id']))
+                    processAlert(alertJson)
+            else:
+                logger.debug("Processing FireEye Alert: " + str(theJson['alert']['id']))
+                processAlert(theJson)
+
+        except ValueError:
+            logger.error("Error:" )
+            self.send_response(500)
 
 # ---------------- end class MyRequestHandler ----------------
 
@@ -112,6 +132,8 @@ def processAlert(p_json):
     :param p_json:
     :type p_json:
     """
+
+    logger.debug(p_json)
     fireinstance = pyFireEyeAlert(p_json)
 
     # This comment will be added to every attribute for reference
@@ -157,7 +179,7 @@ def check_for_previous_events(fireeye_alert):
         logger.debug("searching for %s result: %s", fireeye_alert.alert_id,result)
         event = check_misp_all_result(result)
 
-    #Based on Alert Url
+    # Based on Alert Url
     if fireeye_alert.alert_url and event == False:
         from urllib import quote
 
@@ -173,6 +195,18 @@ def check_for_previous_events(fireeye_alert):
 
         logger.debug("searching for %s result: %s", fireeye_alert.alert_ma_id,result)
         event = check_misp_all_result(result)
+
+
+    # TODO: complete that
+    # combine two criterias e.g. from and to adress
+    #if fireeye_alert.attacker_email:
+    #    result = misp.search_all(quote(fireeye_alert.attacker_email))
+
+    #   if fireeye_alert.victim_email:
+    #        result2 = misp.search_all(quote(fireeye_alert.victim_email))
+
+
+
 
     # if one of the above returns a value:
     previous_event = event
@@ -266,14 +300,18 @@ def map_alert_to_event(auto_comment, event, fireeye_alert):
 
     # infos about the product detected it
     if fireeye_alert.product:
-        if fireeye_alert.product == 'EMAIL_MPS':
+        if fireeye_alert.product == 'EMAIL_MPS' or fireeye_alert.product == 'Email MPS':
             misp.add_tag(event, "veris:action:social:vector=\"Email\"")
-        elif fireeye_alert.product == 'Web MPS':
+        elif fireeye_alert.product == 'Web MPS' or fireeye_alert.product == 'Web_MPS':
             misp.add_tag(event, "veris:action:malware:vector=\"Web drive-by\"")
 
     # if attack was by E-Mail
     if fireeye_alert.attacker_email:
         misp.add_email_src(event, fireeye_alert.attacker_email, False, auto_comment)
+
+    if fireeye_alert.alert_src_domain:
+        misp.add_domain(event,fireeye_alert.alert_src_domain,"Payload delivery",False,auto_comment)
+
     if fireeye_alert.mail_subject:
         misp.add_email_subject(event, fireeye_alert.mail_subject, False, auto_comment)
     if fireeye_alert.victim_email:
@@ -288,6 +326,10 @@ def map_alert_to_event(auto_comment, event, fireeye_alert):
         misp.add_target_machine(event, fireeye_alert.alert_src_ip, False, auto_comment, None)
     if fireeye_alert.alert_src_host:
         misp.add_target_machine(event, fireeye_alert.alert_src_host, False, auto_comment, None)
+
+    if fireeye_alert.alert_src_url:
+        misp.add_url(event, fireeye_alert.alert_src_url,'Payload delivery',False,auto_comment)
+
 
     # TODO: this is not finished yet
     if fireeye_alert.c2services:

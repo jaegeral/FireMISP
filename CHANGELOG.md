@@ -1,3 +1,11 @@
+firemisp 0.8.3 (2016-10-12)
+===========================
+
+- first version to get real files from fireeye
+- for debuggiung purposes writing the json files to a directory as a output
+- catching some typo of Fireeye
+
+
 firemisp 0.8.2 (2016-05-04)
 ===========================
 

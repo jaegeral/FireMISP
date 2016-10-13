@@ -15,7 +15,6 @@ from datetime import datetime
 import simplejson as json
 import logging
 
-
 #init logger
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -63,6 +62,9 @@ class pyFireEyeAlert (object):
         self.c2services = None
         self.c2_address = None
 
+        self.alert_src_url = None
+        self.alert_src_domain = None
+
         # important: parse after initiate, otherwise values will be overwritten
         self._parse_json(a_alert_json)
 
@@ -85,107 +87,130 @@ class pyFireEyeAlert (object):
         :param p_alert_json:
         :type p_alert_json:
         """
-        if not p_alert_json:
-            raise ValueError('No Json given')
+        try:
+            if not p_alert_json:
+                raise ValueError('No Json given')
 
 
-        #parsing magic will happen here
+            #parsing magic will happen here
 
-        if 'id' in p_alert_json['alert']:
-            self.alert_id = str(p_alert_json['alert']['id'])
+            if 'id' in p_alert_json['alert']:
+                self.alert_id = str(p_alert_json['alert']['id'])
 
-        if 'alert-url' in p_alert_json['alert']:
-            self.alert_url = str(p_alert_json['alert']['alert-url'])
-            # and split it to get the ma_id "alert-url": "https://fireeye.foo.bar/event_stream/events_for_bot?ma_id=12345678",
-            self.alert_ma_id = (self.alert_url.split("="))[1]
+            if 'alert-url' in p_alert_json['alert']:
+                self.alert_url = str(p_alert_json['alert']['alert-url'])
+                # and split it to get the ma_id "alert-url": "https://fireeye.foo.bar/event_stream/events_for_bot?ma_id=12345678",
+                self.alert_ma_id = (self.alert_url.split("="))[1]
 
-        # TYPE of APPLIANCE
+            # TYPE of APPLIANCE
 
-        if 'product' in p_alert_json['alert']:
-            self.product = p_alert_json['alert']['product']
-            logger.debug(self.product)
+            if 'product' in p_alert_json['alert']:
+                self.product = p_alert_json['alert']['product']
+                logger.debug(self.product)
 
-        elif 'product' in p_alert_json:
-            self.product = p_alert_json['product']
+            if 'product' in p_alert_json:
+                if p_alert_json['product'] != 'CMS':
+                    self.product = p_alert_json['product']
+                    logger.debug(self.product)
+                else:
+                    logger.info("product: %s",p_alert_json['product'])
 
-        if 'version' in p_alert_json:
-            self.product_version = p_alert_json['version']
+            if 'version' in p_alert_json:
+                self.product_version = p_alert_json['version']
 
-        if 'appliance' in p_alert_json:
-            self.product_appliance = p_alert_json['appliance']
+            if 'appliance' in p_alert_json:
+                self.product_appliance = p_alert_json['appliance']
 
-        if 'appliance-id' in p_alert_json:
-            self.product_appliance_id = p_alert_json['appliance-id']
+            if 'appliance-id' in p_alert_json:
+                self.product_appliance_id = p_alert_json['appliance-id']
 
-        if 'mac' in p_alert_json['alert']:
-            self.src_mac = p_alert_json['alert']['src']['mac']
-            logger.debug("mac %s",self.src_mac)
+            if 'mac' in p_alert_json['alert']:
+                self.src_mac = p_alert_json['alert']['src']['mac']
+                logger.debug("mac %s",self.src_mac)
 
-        if 'vlan' in p_alert_json['alert']:
-            self.src_vlan = p_alert_json['alert']['vlan']
+            if 'vlan' in p_alert_json['alert']:
+                self.src_vlan = p_alert_json['alert']['vlan']
 
-        if 'dst' in p_alert_json['alert']:
-        # to
-            if 'smtpTo' in p_alert_json['alert']['dst']:
-                self.victim_email = p_alert_json['alert']['dst']['smtpTo']
+            if 'dst' in p_alert_json['alert']:
+            # to
+                if 'smtpTo' in p_alert_json['alert']['dst']:
+                    self.victim_email = p_alert_json['alert']['dst']['smtpTo']
 
-        # from
-        if 'smtpMailFrom' in p_alert_json['alert']['src']:
-            attacker_email_temp = p_alert_json['alert']['src']['smtpMailFrom']
+            # from
+            if 'smtpMailFrom' in p_alert_json['alert']['src']:
+                attacker_email_temp = p_alert_json['alert']['src']['smtpMailFrom']
+                #HACK if Source is: "John Doe" <joen@doe.com> --> john@doe.com
+                match = re.search(r'[\w\.-]+@[\w\.-]+', attacker_email_temp)
+                self.attacker_email =  match.group(0)
 
-            #HACK if Source is: "John Doe" <joen@doe.com> --> john@doe.com
-            match = re.search(r'[\w\.-]+@[\w\.-]+', attacker_email_temp)
-            self.attacker_email =  match.group(0)
+            if 'smtp-mail-from' in p_alert_json['alert']['src']:
+                attacker_email_temp = p_alert_json['alert']['src']['smtp-mail-from']
+                # HACK if Source is: "John Doe" <joen@doe.com> --> john@doe.com
+                match = re.search(r'[\w\.-]+@[\w\.-]+', attacker_email_temp)
+                self.attacker_email = match.group(0)
 
-        # subject
-        if 'smtpMessage' in p_alert_json['alert']:
-            self.mail_subject = p_alert_json['alert']['smtpMessage']['subject']
-            #misp.add_email_subject(event, subject)
-
-        #severity (majr minr, ...)
-        if 'severity' in p_alert_json['alert']:
-            self.alert_severity = p_alert_json['alert']['severity']
-
-        # alert - src
-        if 'ip' in p_alert_json['alert']['src']:
-            self.alert_src_ip = p_alert_json['alert']['src']['ip']
-
-        if 'host' in p_alert_json['alert']['src']:
-            self.alert_src_host = p_alert_json['alert']['src']['host']
-
-
-        # occured
-        # ---------- add @timestamp ----------
-        # use alert.occurred for timestamp. It is different for IPS vs other alerts
-        # ips-event alert.occurred format: 2014-12-11T03:28:08Z
-        # all other alert.occurred format: 2014-12-11 03:28:33+00
-        if p_alert_json['alert']['name'] == 'ips-event':
-            timeFormat = '%Y-%m-%dT%H:%M:%SZ'
-        else:
-            timeFormat = '%Y-%m-%d %H:%M:%S+00'
-
-        oc = datetime.strptime(p_alert_json['alert']['occurred'], timeFormat)
-        self.occured = oc.isoformat()
-        logger.debug("date: %s",oc.isoformat())
-        # Put the formatted time into @timestamp
-        # theJson['@timestamp'] = oc.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+            if 'domain' in p_alert_json['alert']['src']:
+                self.alert_src_domain = p_alert_json['alert']['src']['domain']
 
 
 
+            # subject
+            if 'smtpMessage' in p_alert_json['alert']:
+                self.mail_subject = p_alert_json['alert']['smtpMessage']['subject']
+                #misp.add_email_subject(event, subject)
 
-        #TODO: multiple malware
-        if 'explanation' in p_alert_json['alert']:
-            self.parse_explanation(p_alert_json['alert']['explanation'])
+            #severity (majr minr, ...)
+            if 'severity' in p_alert_json['alert']:
+                self.alert_severity = p_alert_json['alert']['severity']
+
+            # alert - src
+            if 'ip' in p_alert_json['alert']['src']:
+                self.alert_src_ip = p_alert_json['alert']['src']['ip']
+
+            if 'host' in p_alert_json['alert']['src']:
+                self.alert_src_host = p_alert_json['alert']['src']['host']
+
+            if 'url' in p_alert_json['alert']['src']:
+                self.alert_src_url = p_alert_json['alert']['src']['url']
 
 
-        if self.parse_explanation:
-            if 'cnc-services' in p_alert_json['alert']['explanation']:
-                for element in p_alert_json['alert']['explanation']['cnc-services']['cnc-service']:
-                    logger.debug("c2 detected")
-                    self.add_cnc_service(element['protocol'],element['port'],element['address'])
+            # occured
+            # ---------- add @timestamp ----------
+            # use alert.occurred for timestamp. It is different for IPS vs other alerts
+            # ips-event alert.occurred format: 2014-12-11T03:28:08Z
+            # all other alert.occurred format: 2014-12-11 03:28:33+00
+            if p_alert_json['alert']['name'] == 'ips-event':
+                timeFormat = '%Y-%m-%dT%H:%M:%SZ'
+            else:
+                timeFormat = '%Y-%m-%d %H:%M:%S+00'
+
+            oc = datetime.strptime(p_alert_json['alert']['occurred'], timeFormat)
+            self.occured = oc.isoformat()
+            logger.debug("date: %s",oc.isoformat())
+            # Put the formatted time into @timestamp
+            # theJson['@timestamp'] = oc.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
 
 
-        logger.debug("Parsing finished")
+
+
+            #TODO: multiple malware
+            if 'explanation' in p_alert_json['alert']:
+                self.parse_explanation(p_alert_json['alert']['explanation'])
+
+
+            if self.parse_explanation:
+                if 'cnc-services' in p_alert_json['alert']['explanation']:
+                    for element in p_alert_json['alert']['explanation']['cnc-services']['cnc-service']:
+                        logger.debug("c2 detected")
+                        self.add_cnc_service(element['protocol'],element['port'],element['address'])
+
+
+            logger.debug("Parsing finished")
+        except ValueError as e:
+            logger.error("Value Error: %s",e.message)
+        except:
+            import sys
+            logger.error("Error while parsing %s", sys.exc_info()[0])
 
 
     def parse_explanation(self, theJson_explanation):
