@@ -108,8 +108,8 @@ class MyRequestHandler(BaseHTTPRequestHandler):
                 logger.debug("Processing FireEye Alert: " + str(theJson['alert']['id']))
                 processAlert(theJson)
 
-        except ValueError:
-            logger.error("Error:" )
+        except ValueError as e:
+            logger.error("Value Error2: %s %s",e.message,e.args)
             self.send_response(500)
 
 # ---------------- end class MyRequestHandler ----------------
@@ -327,9 +327,49 @@ def map_alert_to_event(auto_comment, event, fireeye_alert):
     if fireeye_alert.alert_src_host:
         misp.add_target_machine(event, fireeye_alert.alert_src_host, False, auto_comment, None)
 
+        # TODO: check that
+        #import sys
+        #sys.path.insert(0, './ldap-query')
+
+        from ldap_query import *
+        OS = search_host_and_fqdn(fireeye_alert.alert_src_host, 'operatingSystem')
+        description = search_host_and_fqdn(fireeye_alert.alert_src_host, 'description')
+
+        logger.debug("Searching for %s result %s",fireeye_alert.alert_src_host,OS)
+        misp.add_internal_text(event,OS,False,"OS of "+fireeye_alert.alert_src_host+auto_comment)
+        misp.add_internal_text(event,description,False,"description of "+fireeye_alert.alert_src_host+auto_comment)
+
+    if fireeye_alert.smtp_header:
+        misp.add_internal_text(event,fireeye_alert.smtp_header,False,"smtp_header "+auto_comment)
+
+        from email import parser
+        msg = parser.Parser().parsestr(fireeye_alert.smtp_header, headersonly=True)
+
+        print("asd")
+
+        if 'From' in msg:
+            logger.debug(msg['From'])
+            misp.add_email_src(event,msg['From'],False,"From: "+auto_comment)
+        if 'To' in msg:
+            logger.debug(msg['To'])
+            misp.add_email_dst(event,msg['To'],False,"From: "+auto_comment)
+
+
+
+
     if fireeye_alert.alert_src_url:
         misp.add_url(event, fireeye_alert.alert_src_url,'Payload delivery',False,auto_comment)
 
+
+    if fireeye_alert.dst_ip:
+        misp.add_ipdst(event, fireeye_alert.dst_ip, 'Network activity', True, "Destination IP " + auto_comment, None)
+
+    if fireeye_alert.dst_mac:
+        misp.add_traffic_pattern(event, fireeye_alert.dst_mac, 'Network activity', True, "Dst Mac " + auto_comment, None)
+
+    if fireeye_alert.dst_port:
+        misp.add_traffic_pattern(event, fireeye_alert.dst_port, 'Network activity', True, "Dst Port " + auto_comment,
+                                 None)
 
     # TODO: this is not finished yet
     if fireeye_alert.c2services:

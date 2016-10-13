@@ -62,8 +62,14 @@ class pyFireEyeAlert (object):
         self.c2services = None
         self.c2_address = None
 
+        self.dst_ip = None
+        self.dst_mac = None
+        self.dst_port = None
+
         self.alert_src_url = None
         self.alert_src_domain = None
+        self.smtp_header = None
+        self.smtp_message = None
 
         # important: parse after initiate, otherwise values will be overwritten
         self._parse_json(a_alert_json)
@@ -132,9 +138,22 @@ class pyFireEyeAlert (object):
                 self.src_vlan = p_alert_json['alert']['vlan']
 
             if 'dst' in p_alert_json['alert']:
+                logger.debug("dst %s",p_alert_json['alert']['dst'])
             # to
                 if 'smtpTo' in p_alert_json['alert']['dst']:
                     self.victim_email = p_alert_json['alert']['dst']['smtpTo']
+
+                if 'ip' in p_alert_json['alert']['dst']:
+                    self.dst_ip = p_alert_json['alert']['dst']['ip']
+
+                if 'mac' in p_alert_json['alert']['dst']:
+                    self.dst_mac = p_alert_json['alert']['dst']['mac']
+                if 'port' in p_alert_json['alert']['dst']:
+                    self.dst_port = p_alert_json['alert']['dst']['port']
+
+
+
+
 
             # from
             if 'smtpMailFrom' in p_alert_json['alert']['src']:
@@ -152,6 +171,10 @@ class pyFireEyeAlert (object):
             if 'domain' in p_alert_json['alert']['src']:
                 self.alert_src_domain = p_alert_json['alert']['src']['domain']
 
+
+            if 'smtp-message' in p_alert_json['alert']:
+                if 'smtp-header' in p_alert_json['alert']['smtp-message']:
+                    self.smtp_header = p_alert_json['alert']['smtp-message']['smtp-header']
 
 
             # subject
@@ -201,16 +224,15 @@ class pyFireEyeAlert (object):
             if self.parse_explanation:
                 if 'cnc-services' in p_alert_json['alert']['explanation']:
                     for element in p_alert_json['alert']['explanation']['cnc-services']['cnc-service']:
-                        logger.debug("c2 detected")
-                        self.add_cnc_service(element['protocol'],element['port'],element['address'])
+                        logger.debug("c2 detected %s",element)
+                        #self.add_cnc_service(element['protocol'],element['port'],element['address'])
 
 
             logger.debug("Parsing finished")
         except ValueError as e:
             logger.error("Value Error: %s",e.message)
-        except:
-            import sys
-            logger.error("Error while parsing %s", sys.exc_info()[0])
+        #except Exception as e:
+        #    logger.error("Error while parsing %s", e.message)
 
 
     def parse_explanation(self, theJson_explanation):
