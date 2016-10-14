@@ -54,6 +54,7 @@ class pyFireEyeAlert (object):
         self.malware_http_post = None
         self.malware_file_name = None
         self.occured = None
+        self.root_infection = None
 
         self.c2_protocoll = None
         self.c2_port = None
@@ -107,6 +108,10 @@ class pyFireEyeAlert (object):
                 self.alert_url = str(p_alert_json['alert']['alert-url'])
                 # and split it to get the ma_id "alert-url": "https://fireeye.foo.bar/event_stream/events_for_bot?ma_id=12345678",
                 self.alert_ma_id = (self.alert_url.split("="))[1]
+            if 'root-infection' in p_alert_json['alert']:
+                self.root_infection = str(p_alert_json['alert']['root-infection'])
+
+
 
             # TYPE of APPLIANCE
 

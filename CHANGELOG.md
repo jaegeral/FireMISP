@@ -1,3 +1,10 @@
+firemisp 0.8.4 (2016-10-13)
+===========================
+
+- introduced root_infection
+- lot of corelations added
+
+
 firemisp 0.8.3 (2016-10-12)
 ===========================
 
