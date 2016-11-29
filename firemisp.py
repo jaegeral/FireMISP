@@ -12,38 +12,17 @@
 # Please see: https://github.com/spcampbell/firestic
 #
 
-import ConfigParser
-import logging
 from BaseHTTPServer import BaseHTTPRequestHandler
 from BaseHTTPServer import HTTPServer
 from SocketServer import ThreadingMixIn
+
 import simplejson as json
 
-try:
-    from pymisp import PyMISP
-    HAVE_PYMISP = True
-except:
-    HAVE_PYMISP = False
+from firemisp_settings import *
+from ldap_query import search_host_and_fqdn, search_userprinciplename, search_for_mail
 
-from pyFireEyeAlert import pyFireEyeAlert
+filename1 = ""
 
-config = ConfigParser.RawConfigParser()
-config.read('config.cfg')
-
-# set config values
-misp_url = config.get('MISP', 'misp_url')
-misp_key = config.get('MISP', 'misp_key')
-misp_verifycert = config.getboolean('MISP', 'misp_verifycert')
-
-firemisp_ip = config.get('FireMisp', 'httpServerIP')
-firemisp_port = config.getint('FireMisp', 'httpServerPort')
-firemisp_logfile = config.get('FireMisp', 'logFile')
-
-
-#init logger
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 def init_misp(url, key):
     """
@@ -85,12 +64,15 @@ class MyRequestHandler(BaseHTTPRequestHandler):
         try:
             # Write the data to a file as well for debugging later on
             import datetime
-            filename1 = './testing/real/'+datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+            filename1 = './testing/real/'+datetime.datetime.now().strftime("%Y%m%d-%H%M%S")+".json"
             f = open(filename1, 'w')
-            f.write(data)
-            f.close
+
 
             theJson = json.loads(clean)
+
+            #f.write(data)
+            json.dump(theJson, f)
+            f.close
 
             self.send_response(200)
             self.end_headers()
@@ -167,38 +149,41 @@ def check_for_previous_events(fireeye_alert):
     """
     event = False
 
-    # TODO: de-duplication is still an issue and the following is a bit hacky
-
-    if event == False:
+    if event is False:
         # Based on alert id
         if fireeye_alert.alert_id:
             result = misp.search_all(fireeye_alert.alert_id)
             logger.debug("searching for %s result: %s", fireeye_alert.alert_id,result)
             event = check_misp_all_result(result)
 
+            if event is not False:
+                logger.debug("found event based on Alert ID")
+                return_event = misp.get(str(event))  # not get_event!
+                return return_event
+
         from urllib import quote
         # Based on Alert Url
 
-        if fireeye_alert.alert_url and event == False:
+        if fireeye_alert.alert_url and event is False:
             result = misp.search_all(quote(fireeye_alert.alert_url))
             logger.debug("searching for %s result: %s", fireeye_alert.alert_url,result)
             event = check_misp_all_result(result)
+            if event is not False:
+                logger.debug("found event based on alert url")
+
+                return_event = misp.get(str(event))  # not get_event!
+                return return_event
 
         # Based on ma_id
         if fireeye_alert.alert_ma_id and event == False:
             result = misp.search_all(quote(fireeye_alert.alert_ma_id))
             logger.debug("searching for %s result: %s", fireeye_alert.alert_ma_id,result)
             event = check_misp_all_result(result)
+            if event is not False:
+                logger.debug("found event based on MA ID")
 
-
-        # TODO: complete that
-        # combine two criterias e.g. from and to adress
-        #if fireeye_alert.attacker_email:
-        #    result = misp.search_all(quote(fireeye_alert.attacker_email))
-
-        #   if fireeye_alert.victim_email:
-        #        result2 = misp.search_all(quote(fireeye_alert.victim_email))
-
+                return_event = misp.get(str(event))  # not get_event!
+                return return_event
 
 
         # check if source machine and destination are already known
@@ -208,28 +193,50 @@ def check_for_previous_events(fireeye_alert):
         dest_event_2 = None
         event_3 = None
 
-        if fireeye_alert.alert_src_domain and event == False:
-            result = misp.search_all(quote(fireeye_alert.alert_src_domain))
-            logger.debug("searching for %s result: %s", fireeye_alert.alert_ma_id, result)
-            source_event_1 = check_misp_all_result(result)
+        if fireeye_alert.dst_ip and fireeye_alert.alert_src_ip:
+            event = check_misp_two_criterias(misp,fireeye_alert.dst_ip,fireeye_alert.alert_src_ip)
+            if event is not False:
+                logger.debug("found event based on Source IP / Dst IP combination")
 
-        if fireeye_alert.dst_ip and event == False:
-            result = misp.search_all(quote(fireeye_alert.dst_ip))
-            dest_event_2 = check_misp_all_result(result)
+                return_event = misp.get(str(event))  # not get_event!
+                return return_event
 
-        # if not already an source event was found
-        if fireeye_alert.alert_src_ip and source_event_1 == None and event == False:
-            result = misp.search_all(quote(fireeye_alert.alert_src_ip))
-            source_event_1 = check_misp_all_result(result)
+            # no previous event found and source domain set
+        if fireeye_alert.attacker_email and fireeye_alert.victim_email:
+            event = check_misp_two_criterias(misp, fireeye_alert.attacker_email, fireeye_alert.victim_email)
+            if event is not False:
+                logger.debug("found event based on src  dst Mail")
 
+                return_event = misp.get(str(event))  # not get_event!
+                return return_event
 
-        if source_event_1 != None and dest_event_2 != None and source_event_1 == dest_event_2:
-            event = dest_event_2
+        # no previous event found and source domain set
+        if fireeye_alert.alert_src_domain and fireeye_alert.dst_ip:
+            event = check_misp_two_criterias(misp,fireeye_alert.alert_src_domain,fireeye_alert.dst_ip)
+            if event is not False:
+                logger.debug("found event based on src domain / dst IP")
+
+                return_event = misp.get(str(event))  # not get_event!
+                return return_event
+
+        # no previous event found and source domain set
+        if fireeye_alert.alert_src_domain and fireeye_alert.dst_ip:
+            event = check_misp_two_criterias(misp, fireeye_alert.alert_src_domain, fireeye_alert.dst_ip)
+            if event is not False:
+                logger.debug("found event based on src domain / dst IP")
+
+                return_event = misp.get(str(event))  # not get_event!
+                return return_event
 
         #check if root infection is the same:
         if fireeye_alert.root_infection:
             result = misp.search_all(quote(fireeye_alert.root_infection))
             event =  check_misp_all_result(result)
+            if event is not False:
+                logger.debug("found event based on root infection")
+
+                return_event = misp.get(str(event))  # not get_event!
+                return return_event
 
     # if one of the above returns a value:
     previous_event = event
@@ -252,6 +259,25 @@ def check_for_previous_events(fireeye_alert):
     return event
 
 
+def check_misp_two_criterias(misp,criteria1,criteria2):
+
+    logger.debug("Search for two criteria: %s %s",criteria1,criteria2)
+    event1=False
+    event2=False
+
+    result1 = misp.search_all(criteria1)
+    result2 = misp.search_all(criteria2)
+
+    event1 = check_misp_all_result(result1)
+    event2 = check_misp_all_result(result2)
+    if event1 is not False and event2 is not False:
+        if event1 == event2:
+            logger.debug("Found a match with two given criteria")
+            return event1
+    #if no common event for both criterias exist, return false
+    return False
+
+
 def check_misp_all_result(result):
     logger.debug("Checking %s if it contains previous events",result)
     if 'message' in result:
@@ -267,7 +293,7 @@ def check_misp_all_result(result):
             break
     else:
         for e in result['response']:
-            logger.debug("found a previous event!")
+            logger.debug("found a previous event2!")
             previous_event = e['Event']['id']
             return previous_event
             break
@@ -288,6 +314,7 @@ def map_alert_to_event(auto_comment, event, fireeye_alert):
     :param fireeye_alert:
     :type fireeye_alert:
     """
+
 
 
     misp.add_internal_text(event, fireeye_alert.alert_id, False, auto_comment)
@@ -338,6 +365,7 @@ def map_alert_to_event(auto_comment, event, fireeye_alert):
     if fireeye_alert.mail_subject:
         misp.add_email_subject(event, fireeye_alert.mail_subject, False, auto_comment)
     if fireeye_alert.victim_email:
+        #TODO: Addd ldap details here as well!
         misp.add_email_dst(event, fireeye_alert.victim_email, 'Payload delivery', False, auto_comment)
     if fireeye_alert.malware_md5:
         logger.debug("Malware within the event %s", fireeye_alert.malware_md5)
@@ -358,29 +386,47 @@ def map_alert_to_event(auto_comment, event, fireeye_alert):
         from email import parser
         msg = parser.Parser().parsestr(fireeye_alert.smtp_header, headersonly=True)
 
-        print("asd")
-
         if 'From' in msg:
-            logger.debug(msg['From'])
-            misp.add_email_src(event,msg['From'],False,"From: "+auto_comment)
+            logger.debug("from found %s",msg['From'])
+            misp.add_email_src(event,email=msg['From'], to_ids=False, comment="From: "+auto_comment)
+
         if 'To' in msg:
-            logger.debug(msg['To'])
-            misp.add_email_dst(event,msg['To'],False,"From: "+auto_comment)
+            #TODO: Add LDAP Info for the victim!
 
+            logger.debug("to found %s",msg['To'])
+            misp.add_email_dst(event,email=msg['To'],category='Payload delivery', to_ids=False,comment="to: "+auto_comment)
+            misp.add_internal_other(event,reference=msg['To'],to_ids=False,comment="to: "+auto_comment)
 
+            #TODO hacky to get a real mail adress
+            msg_to = str.replace(msg['To'],"<","")
+            msg_to = str.replace(msg_to, ">", "")
+            fireeye_alert.victim_email=msg_to
+            misp.add_email_dst(event,email=msg_to,category='Payload delivery', to_ids=False,comment="to: "+auto_comment)
+
+            ownerorg = search_for_mail(msg_to, 'department')
+            ownerorg2 = search_for_mail(msg_to, 'company')
+
+            if ownerorg is not False:
+                misp.add_target_org(event, target=ownerorg, to_ids=False,
+                                    comment="Owner dep of " + msg_to)
+                misp.add_target_org(event, target=ownerorg2, to_ids=False,
+                                    comment="Owner company of " + msg_to)
 
 
     if fireeye_alert.alert_src_url:
         misp.add_url(event, fireeye_alert.alert_src_url,'Payload delivery',False,auto_comment)
 
-
+    ignore_destination = False
     if fireeye_alert.dst_ip:
-        misp.add_ipdst(event, fireeye_alert.dst_ip, 'Network activity', True, "Destination IP " + auto_comment, None)
+        if fireeye_alert.dst_ip is "10.4.55.30":
+            ignore_destination = True
+        else:
+            misp.add_ipdst(event, fireeye_alert.dst_ip, 'Network activity', True, "Destination IP " + auto_comment, None)
 
-    if fireeye_alert.dst_mac:
+    if fireeye_alert.dst_mac and ignore_destination is not True:
         misp.add_traffic_pattern(event, fireeye_alert.dst_mac, 'Network activity', True, "Dst Mac " + auto_comment, None)
 
-    if fireeye_alert.dst_port:
+    if fireeye_alert.dst_port and ignore_destination is not True:
         misp.add_traffic_pattern(event, fireeye_alert.dst_port, 'Network activity', True, "Dst Port " + auto_comment,
                                  None)
 
@@ -391,9 +437,16 @@ def map_alert_to_event(auto_comment, event, fireeye_alert):
         # import sys
         # sys.path.insert(0, './ldap-query')
 
-        from ldap_query import search_host_and_fqdn
         OS = search_host_and_fqdn(fireeye_alert.alert_src_host, 'operatingSystem')
         description = search_host_and_fqdn(fireeye_alert.alert_src_host, 'description')
+
+        ownerorg = search_userprinciplename(description, 'department')
+        ownerorg2 = search_userprinciplename(description, 'company')
+
+        if ownerorg is not False:
+            misp.add_target_org(event,target=ownerorg,to_ids=False,comment="Owner dep of "+fireeye_alert.alert_src_host)
+            misp.add_target_org(event,target=ownerorg2,to_ids=False,comment="Owner company of "+fireeye_alert.alert_src_host)
+
 
         logger.debug("Searching for %s result %s", fireeye_alert.alert_src_host, OS)
         misp.add_internal_comment(event, OS, False, "OS of " + fireeye_alert.alert_src_host + auto_comment)
@@ -407,6 +460,13 @@ def map_alert_to_event(auto_comment, event, fireeye_alert):
         misp.add_ipdst(event, fireeye_alert.c2_address, 'Network activity', True, "C2 IP " + auto_comment, None)
         misp.add_traffic_pattern(event, fireeye_alert.c2_port, 'Network activity', True, "C2 Port " + auto_comment, None)
         misp.add_traffic_pattern(event, fireeye_alert.c2_protocoll, 'Network activity', True, "C2 Protocoll " + auto_comment, None)
+        misp.add_traffic_pattern(event, fireeye_alert.c2_channel, 'Network activity', True, "C2 Channel " + auto_comment, None)
+
+    # add raw alert as attachment
+    if filename1 is not "":
+            misp.upload_sample(filename=filename1, category='External analysis', to_ids= False,comment= 'Full Alert' )
+    misp.add_internal_comment(event,str(fireeye_alert.alert), distribution=False,comment= "Full Alert")
+
 
 
 def main():

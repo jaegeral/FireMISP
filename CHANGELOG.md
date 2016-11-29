@@ -2,8 +2,9 @@ firemisp 0.8.4 (2016-10-13)
 ===========================
 
 - introduced root_infection
-- lot of corelations added
-
+- lot of correlations added
+- more correlation
+- fixed some C2 stuff
 
 firemisp 0.8.3 (2016-10-12)
 ===========================

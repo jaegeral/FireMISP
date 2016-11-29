@@ -63,6 +63,7 @@ class pyFireEyeAlert (object):
         self.c2services = None
         self.c2_address = None
 
+
         self.dst_ip = None
         self.dst_mac = None
         self.dst_port = None
@@ -76,13 +77,21 @@ class pyFireEyeAlert (object):
         self._parse_json(a_alert_json)
 
     #'tcp','1234','1.2.3.4'):
-    def add_cnc_service(self,protocoll,port,ip):
+    def add_cnc_service(self, protocoll, port, ip):
         self.c2services = True
         self.c2_address = ip
         self.c2_port = port
         self.c2_protocoll = protocoll
         logger.debug("add cnc service called %s %s %s",protocoll,port,ip)
 
+    #def add_cnc_service(self,c2_element):
+    #    logger.debug(c2_element)
+    #    if 'address' in c2_element:
+    #        logger.debug("adress")
+    #    if 'protocol' in c2_element:
+    #        self.c2_protocoll = str(c2_element['protocol'])
+    #    if 'channel' in c2_element:
+    #        self.c2_channel = str(c2_element['channel'])
 
 
     def _parse_json(self, p_alert_json):
@@ -147,6 +156,8 @@ class pyFireEyeAlert (object):
             # to
                 if 'smtpTo' in p_alert_json['alert']['dst']:
                     self.victim_email = p_alert_json['alert']['dst']['smtpTo']
+                if 'smtp-to' in p_alert_json['alert']['dst']:
+                    self.victim_email = p_alert_json['alert']['dst']['smtp-to']
 
                 if 'ip' in p_alert_json['alert']['dst']:
                     self.dst_ip = p_alert_json['alert']['dst']['ip']
@@ -212,7 +223,7 @@ class pyFireEyeAlert (object):
             else:
                 timeFormat = '%Y-%m-%d %H:%M:%S+00'
 
-            oc = datetime.strptime(p_alert_json['alert']['occurred'], timeFormat)
+            oc = datetime.strptime(str(p_alert_json['alert']['occurred']), timeFormat)
             self.occured = oc.isoformat()
             logger.debug("date: %s",oc.isoformat())
             # Put the formatted time into @timestamp
@@ -228,10 +239,27 @@ class pyFireEyeAlert (object):
 
             if self.parse_explanation:
                 if 'cnc-services' in p_alert_json['alert']['explanation']:
-                    for element in p_alert_json['alert']['explanation']['cnc-services']['cnc-service']:
-                        logger.debug("c2 detected %s",element)
-                        #self.add_cnc_service(element['protocol'],element['port'],element['address'])
-
+                    self.c2services = True
+                    for element in p_alert_json['alert']['explanation']['cnc-services']:
+                        if 'protocoll' in element:
+                            self.c2_protocoll = element['protocol']
+                        if 'port' in element:
+                            self.c2_protocoll = element['port']
+                        if 'channel' in element:
+                            self.c2_protocoll = element['channel']
+                        if 'address' in element:
+                            self.c2_protocoll = element['address']
+                    #    logger.debug("c2 detected %s",element)
+                    #    #TODO check that!!!
+                    #    self.add_cnc_service(element)
+                        '''if p_alert_json['alert']['explanation']['cnc-services']['cnc-service']['protocol']:
+                            self.c2_protocoll = p_alert_json['alert']['explanation']['cnc-services']['cnc-service']['protocol']
+                        if p_alert_json['alert']['explanation']['cnc-services']['cnc-service']['port']:
+                            self.c2_port = p_alert_json['alert']['explanation']['cnc-services']['cnc-service']['port']
+                        if p_alert_json['alert']['explanation']['cnc-services']['cnc-service']['channel']:
+                            self.c2_channel = p_alert_json['alert']['explanation']['cnc-services']['cnc-service']['channel']
+                        if p_alert_json['alert']['explanation']['cnc-services']['cnc-service']['address']:
+                            self.c2_adress = p_alert_json['alert']['explanation']['cnc-services']['cnc-service']['address']'''
 
             logger.debug("Parsing finished")
         except ValueError as e:
