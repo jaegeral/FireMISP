@@ -418,7 +418,7 @@ def map_alert_to_event(auto_comment, event, fireeye_alert):
 
     ignore_destination = False
     if fireeye_alert.dst_ip:
-        if fireeye_alert.dst_ip is "10.4.55.30":
+        if fireeye_alert.dst_ip in whitelist:
             ignore_destination = True
         else:
             misp.add_ipdst(event, fireeye_alert.dst_ip, 'Network activity', True, "Destination IP " + auto_comment, None)

@@ -5,6 +5,7 @@ firemisp 0.8.4 (2016-10-13)
 - lot of correlations added
 - more correlation
 - fixed some C2 stuff
+- introducing Whitelist config param, e.g. for your proxy ip or other ips you want to whitelist to be reported as destination ip
 
 firemisp 0.8.3 (2016-10-12)
 ===========================
