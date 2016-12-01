@@ -459,13 +459,14 @@ def map_alert_to_event(auto_comment, event, fireeye_alert):
         misp.add_domain(event, fireeye_alert.c2_address, 'Network activity', True, auto_comment, None)
         misp.add_ipdst(event, fireeye_alert.c2_address, 'Network activity', True, "C2 IP " + auto_comment, None)
         misp.add_traffic_pattern(event, fireeye_alert.c2_port, 'Network activity', True, "C2 Port " + auto_comment, None)
-        misp.add_traffic_pattern(event, fireeye_alert.c2_protocoll, 'Network activity', True, "C2 Protocoll " + auto_comment, None)
+        misp.add_traffic_pattern(event, fireeye_alert.c2_protocoll, 'Network activity', True, "C2 Protocol " + auto_comment, None)
         misp.add_traffic_pattern(event, fireeye_alert.c2_channel, 'Network activity', True, "C2 Channel " + auto_comment, None)
 
     # add raw alert as attachment
     if filename1 is not "":
-            misp.upload_sample(filename=filename1, category='External analysis', to_ids= False,comment= 'Full Alert' )
-    misp.add_internal_comment(event,str(fireeye_alert.alert), distribution=False,comment= "Full Alert")
+            # TODO: that does not work at the moment
+            misp.upload_sample(filename=filename1, category='External analysis', to_ids= False,comment='Full Alert' )
+    misp.add_internal_comment(event, str(fireeye_alert.alert), distribution=False, comment="Full Alert")
 
 
 
