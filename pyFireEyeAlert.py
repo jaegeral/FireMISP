@@ -21,7 +21,6 @@ logger = logging.getLogger(__name__)
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 
-
 class pyFireEyeAlert (object):
     def __init__(self, a_alert_json):
         """
@@ -76,7 +75,6 @@ class pyFireEyeAlert (object):
         # important: parse after initiate, otherwise values will be overwritten
         self._parse_json(a_alert_json)
 
-    #'tcp','1234','1.2.3.4'):
     def add_cnc_service(self, protocoll, port, ip):
         self.c2services = True
         self.c2_address = ip
@@ -84,14 +82,6 @@ class pyFireEyeAlert (object):
         self.c2_protocoll = protocoll
         logger.debug("add cnc service called %s %s %s",protocoll,port,ip)
 
-    #def add_cnc_service(self,c2_element):
-    #    logger.debug(c2_element)
-    #    if 'address' in c2_element:
-    #        logger.debug("adress")
-    #    if 'protocol' in c2_element:
-    #        self.c2_protocoll = str(c2_element['protocol'])
-    #    if 'channel' in c2_element:
-    #        self.c2_channel = str(c2_element['channel'])
 
 
     def _parse_json(self, p_alert_json):
@@ -107,7 +97,6 @@ class pyFireEyeAlert (object):
             if not p_alert_json:
                 raise ValueError('No Json given')
 
-
             #parsing magic will happen here
 
             if 'id' in p_alert_json['alert']:
@@ -119,8 +108,6 @@ class pyFireEyeAlert (object):
                 self.alert_ma_id = (self.alert_url.split("="))[1]
             if 'root-infection' in p_alert_json['alert']:
                 self.root_infection = str(p_alert_json['alert']['root-infection'])
-
-
 
             # TYPE of APPLIANCE
 
@@ -167,10 +154,6 @@ class pyFireEyeAlert (object):
                 if 'port' in p_alert_json['alert']['dst']:
                     self.dst_port = p_alert_json['alert']['dst']['port']
 
-
-
-
-
             # from
             if 'smtpMailFrom' in p_alert_json['alert']['src']:
                 attacker_email_temp = p_alert_json['alert']['src']['smtpMailFrom']
@@ -192,7 +175,6 @@ class pyFireEyeAlert (object):
                 if 'smtp-header' in p_alert_json['alert']['smtp-message']:
                     self.smtp_header = p_alert_json['alert']['smtp-message']['smtp-header']
 
-
             # subject
             if 'smtpMessage' in p_alert_json['alert']:
                 self.mail_subject = p_alert_json['alert']['smtpMessage']['subject']
@@ -212,7 +194,6 @@ class pyFireEyeAlert (object):
             if 'url' in p_alert_json['alert']['src']:
                 self.alert_src_url = p_alert_json['alert']['src']['url']
 
-
             # occured
             # ---------- add @timestamp ----------
             # use alert.occurred for timestamp. It is different for IPS vs other alerts
@@ -229,13 +210,9 @@ class pyFireEyeAlert (object):
             # Put the formatted time into @timestamp
             # theJson['@timestamp'] = oc.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
 
-
-
-
             #TODO: multiple malware
             if 'explanation' in p_alert_json['alert']:
                 self.parse_explanation(p_alert_json['alert']['explanation'])
-
 
             if self.parse_explanation:
                 if 'cnc-services' in p_alert_json['alert']['explanation']:
@@ -251,26 +228,12 @@ class pyFireEyeAlert (object):
                             self.c2_protocoll = element['address']
                     #    logger.debug("c2 detected %s",element)
                     #    #TODO check that!!!
-                    #    self.add_cnc_service(element)
-                        '''if p_alert_json['alert']['explanation']['cnc-services']['cnc-service']['protocol']:
-                            self.c2_protocoll = p_alert_json['alert']['explanation']['cnc-services']['cnc-service']['protocol']
-                        if p_alert_json['alert']['explanation']['cnc-services']['cnc-service']['port']:
-                            self.c2_port = p_alert_json['alert']['explanation']['cnc-services']['cnc-service']['port']
-                        if p_alert_json['alert']['explanation']['cnc-services']['cnc-service']['channel']:
-                            self.c2_channel = p_alert_json['alert']['explanation']['cnc-services']['cnc-service']['channel']
-                        if p_alert_json['alert']['explanation']['cnc-services']['cnc-service']['address']:
-                            self.c2_adress = p_alert_json['alert']['explanation']['cnc-services']['cnc-service']['address']'''
 
             logger.debug("Parsing finished")
         except ValueError as e:
             logger.error("Value Error: %s",e.message)
-        #except Exception as e:
-        #    logger.error("Error while parsing %s", e.message)
-
 
     def parse_explanation(self, theJson_explanation):
-        #logger.debug("only expl: %s",json.dumps(theJson_explanation))
-
 
         if 'malwareDetected' in theJson_explanation:
             # iterate
