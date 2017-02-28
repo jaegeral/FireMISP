@@ -1,4 +1,4 @@
-import ConfigParser
+import configparser
 import logging
 
 HAVE_PYMISP = True
@@ -9,7 +9,7 @@ except:
 
 from pyFireEyeAlert import pyFireEyeAlert
 
-config = ConfigParser.RawConfigParser()
+config = configparser.RawConfigParser()
 config.read('config.cfg')
 
 # set config values

@@ -12,14 +12,29 @@
 # Please see: https://github.com/spcampbell/firestic
 #
 
-from BaseHTTPServer import BaseHTTPRequestHandler
-from BaseHTTPServer import HTTPServer
-from SocketServer import ThreadingMixIn
+from http.server import BaseHTTPRequestHandler,HTTPServer
+from socketserver import ThreadingMixIn
 
 import simplejson as json
 
 from firemisp_settings import *
-from ldap_query import search_host_and_fqdn, search_userprinciplename, search_for_mail
+
+# TODO: check that
+import sys
+import os
+
+#sys.path.insert(0, '../ldap-query/ldap_query.py')
+
+'''
+sys.path.append('../ldap-query')
+import os
+sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '../..'))
+sys.path.append('../..')
+
+#from ../ldap-query import *
+from ldap_query import *
+'''
+
 
 filename1 = ""
 
@@ -45,30 +60,49 @@ class MyRequestHandler(BaseHTTPRequestHandler):
         logger.debug("someone get")
         pingresponse = {"name": "FireMisp is up"}
         if self.path == "/ping":
-            self.send_response(200)
+            self.send_response(code=200)
             self.send_header("Content-type:", "text/html")
-            self.wfile.write("\n")
-            json.dump(pingresponse, self.wfile)
+            self.end_headers()
+            self.wfile.write(bytes(str(pingresponse), 'UTF-8'))
+            logger.debug(pingresponse)
         else:
-            self.send_response(200)
+            self.send_response(501)
             self.send_header("Content-type:", "text/html")
-            self.wfile.write("\n")
-            json.dump(pingresponse, self.wfile)
+            self.end_headers()
+            self.wfile.write(bytes("Error", 'UTF-8'))
+
+    def _parse_POST(self):
+        import cgi
+        ctype, pdict = cgi.parse_header(self.headers.getheader('content-type'))
+        if ctype == 'multipart/form-data':
+            postvars = cgi.parse_multipart(self.rfile, pdict)
+        elif ctype == 'application/x-www-form-urlencoded':
+            length = int(self.headers.getheader('content-length'))
+            postvars = cgi.parse_qs(
+                self.rfile.read(length), keep_blank_values=1)
+        else:
+            postvars = {}
+
+        return postvars
 
     # -------------- POST handler: where the magic happens --------------
     def do_POST(self):
         logger.debug("someone sended a post")
         # get the posted data and remove newlines
-        data = self.rfile.read(int(self.headers.getheader('Content-Length')))
-        clean = data.replace('\n', '')
+        # https://stackoverflow.com/questions/2121481/python3-http-server-post-example
+        length = int(self.headers['Content-Length'])
+        post_data2 = self.rfile.read(length).decode('utf-8')
+        clean = post_data2.replace('\n', '')
+        theJson = json.loads(clean)
+
+        # TODO give something as response back
+        self.wfile.write("Lorem Ipsum".encode("utf-8"))
+
         try:
             # Write the data to a file as well for debugging later on
             import datetime
             filename1 = './testing/real/'+datetime.datetime.now().strftime("%Y%m%d-%H%M%S")+".json"
             f = open(filename1, 'w')
-
-
-            theJson = json.loads(clean)
 
             #f.write(data)
             json.dump(theJson, f)
@@ -79,8 +113,8 @@ class MyRequestHandler(BaseHTTPRequestHandler):
             #processAlert(theJson)
             # deal with multiple alerts embedded as an array
             if isinstance(theJson['alert'], list):
-    #            alertJson = theJson
-    #            del alertJson['alert']
+                # alertJson = theJson
+                # del alertJson['alert']
                 for element in theJson['alert']:
                     alertJson = {}  # added for Issue #4
                     alertJson['alert'] = element
@@ -100,7 +134,7 @@ class MyRequestHandler(BaseHTTPRequestHandler):
 # ---------------- Class handles requests in a separate thread. ----------------
 
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
-	pass
+    pass
 
 # ---------------- end class ThreadedHTTPServer ----------------
 
@@ -315,12 +349,11 @@ def map_alert_to_event(auto_comment, event, fireeye_alert):
     :type fireeye_alert:
     """
 
-
-
-    misp.add_internal_text(event, fireeye_alert.alert_id, False, auto_comment)
+    misp.add_internal_text(event, fireeye_alert.alert_id, to_ids=False, comment=auto_comment)
     ### Start Tagging here
     # TLP change it if you want to change default TLP
-    misp.add_tag(event, "tlp:amber")
+    logger.debug("asdasd %s",event['Event'])
+    misp.add_tag(event['Event'], tag="tlp:amber")
     # General detected by a security system. So reflect in a tag
     misp.add_tag(event, "veris:discovery_method=\"Int - security alarm\"")
     # Severity Tag + Threat level of the Event
@@ -357,7 +390,13 @@ def map_alert_to_event(auto_comment, event, fireeye_alert):
 
     # if attack was by E-Mail
     if fireeye_alert.attacker_email:
-        misp.add_email_src(event, fireeye_alert.attacker_email, False, auto_comment)
+        result_attribute = misp.add_email_src(event, fireeye_alert.attacker_email, False, auto_comment,distribution=5)
+
+        for temp in result_attribute['Event']['Attribute']:
+            attribute_id = temp
+            break
+        # TODO: that needs to be reviewed
+        misp.add_tag(attribute_id, "PAP:WHITE", attribute=True)
 
     if fireeye_alert.alert_src_domain:
         misp.add_domain(event,fireeye_alert.alert_src_domain,"Payload delivery",False,auto_comment)
@@ -366,6 +405,9 @@ def map_alert_to_event(auto_comment, event, fireeye_alert):
         misp.add_email_subject(event, fireeye_alert.mail_subject, False, auto_comment)
     if fireeye_alert.victim_email:
         #TODO: Addd ldap details here as well!
+
+        #veris:attribute:confidentiality:data_victim = "Employee"
+
         misp.add_email_dst(event, fireeye_alert.victim_email, 'Payload delivery', False, auto_comment)
     if fireeye_alert.malware_md5:
         logger.debug("Malware within the event %s", fireeye_alert.malware_md5)
@@ -403,6 +445,10 @@ def map_alert_to_event(auto_comment, event, fireeye_alert):
             fireeye_alert.victim_email=msg_to
             misp.add_email_dst(event,email=msg_to,category='Payload delivery', to_ids=False,comment="to: "+auto_comment)
 
+
+            #TODO Add LDAP Again:
+            '''
+
             ownerorg = search_for_mail(msg_to, 'department')
             ownerorg2 = search_for_mail(msg_to, 'company')
 
@@ -411,6 +457,7 @@ def map_alert_to_event(auto_comment, event, fireeye_alert):
                                     comment="Owner dep of " + msg_to)
                 misp.add_target_org(event, target=ownerorg2, to_ids=False,
                                     comment="Owner company of " + msg_to)
+            '''
 
 
     if fireeye_alert.alert_src_url:
@@ -433,10 +480,8 @@ def map_alert_to_event(auto_comment, event, fireeye_alert):
     if fireeye_alert.alert_src_host:
         misp.add_target_machine(event, fireeye_alert.alert_src_host, False, auto_comment, None)
 
-        # TODO: check that
-        # import sys
-        # sys.path.insert(0, './ldap-query')
-
+        # TODO Add LDAP again
+        '''
         OS = search_host_and_fqdn(fireeye_alert.alert_src_host, 'operatingSystem')
         description = search_host_and_fqdn(fireeye_alert.alert_src_host, 'description')
 
@@ -447,11 +492,12 @@ def map_alert_to_event(auto_comment, event, fireeye_alert):
             misp.add_target_org(event,target=ownerorg,to_ids=False,comment="Owner dep of "+fireeye_alert.alert_src_host)
             misp.add_target_org(event,target=ownerorg2,to_ids=False,comment="Owner company of "+fireeye_alert.alert_src_host)
 
-
         logger.debug("Searching for %s result %s", fireeye_alert.alert_src_host, OS)
         misp.add_internal_comment(event, OS, False, "OS of " + fireeye_alert.alert_src_host + auto_comment)
         misp.add_internal_text(event, description, False,
                                "description of " + fireeye_alert.alert_src_host + auto_comment)
+
+        '''
 
     # TODO: this is not finished yet
     if fireeye_alert.c2services:
@@ -467,7 +513,6 @@ def map_alert_to_event(auto_comment, event, fireeye_alert):
             # TODO: that does not work at the moment
             misp.upload_sample(filename=filename1, category='External analysis', to_ids= False,comment='Full Alert' )
     misp.add_internal_comment(event, str(fireeye_alert.alert), distribution=False, comment="Full Alert")
-
 
 
 def main():
@@ -501,7 +546,8 @@ if __name__ == "__main__":
     misp = init_misp(misp_url, misp_key)
 
     #clean the database for test purposes
-    '''for i in range (1300,1388,1):
+    '''
+    for i in range (2000,2400,1):
         misp.delete_event(i)
     exit()
     '''

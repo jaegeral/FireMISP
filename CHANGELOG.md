@@ -1,3 +1,11 @@
+firemisp 0.8.4 (2017-02-27)
+===========================
+
+- make it python3
+- tested with all three example files
+- introduced test cases
+
+
 firemisp 0.8.4 (2016-10-13)
 ===========================
 
