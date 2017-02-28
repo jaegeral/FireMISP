@@ -1,0 +1,6 @@
+simplejson>=3.6.5
+pymisp>=2.4.62
+httplib2>=0.8
+configparser
+urllib3
+json
