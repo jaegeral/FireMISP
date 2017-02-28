@@ -98,3 +98,6 @@ There are obviosly some things to be done in the future:
 - introduce new mappings (FireMisp.py + pyFireEyeAlert.py)
 - improve correlation (Feedback welcome)
 - test it with high volume of alerts
+- Python3 support
+- unittests
+- make LDAP a config part
