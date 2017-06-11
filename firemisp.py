@@ -23,17 +23,6 @@ from firemisp_settings import *
 import sys
 import os
 
-#sys.path.insert(0, '../ldap-query/ldap_query.py')
-
-'''
-sys.path.append('../ldap-query')
-import os
-sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '../..'))
-sys.path.append('../..')
-
-#from ../ldap-query import *
-from ldap_query import *
-'''
 
 
 filename1 = ""
