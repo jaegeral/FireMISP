@@ -92,7 +92,7 @@ To be done
 Roadmap
 =======
 
-There are obviosly some things to be done in the future:
+There are obviously some things to be done in the future:
 - improve current mappings (pyFireEyeAlert.py)
 - make the mapping more robust (pyFireEyeAlert.py)
 - introduce new mappings (FireMisp.py + pyFireEyeAlert.py)
